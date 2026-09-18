@@ -53,6 +53,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/selfsigned": "^2.1.0",
     "autoprefixer": "^10.4.21",
+    "pg-mem": "^3.0.14",
     "tailwindcss": "^4.1.14"
   }
 }

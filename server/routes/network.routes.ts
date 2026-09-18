@@ -116,9 +116,9 @@ router.get('/info', async (req: Request, res: Response) => {
       addresses: localAddresses,
       isHttps,
       database: {
-        engine: isPg ? 'PostgreSQL Central Database' : 'Server File Storage Engine (Fallback)',
-        status: 'connected',
-        isPostgres: isPg,
+        engine: 'PostgreSQL Central Database (Single Source of Truth)',
+        status: isPg ? 'connected' : 'disconnected',
+        isPostgres: true,
         multiUserSafe: true,
         acidTransactions: true,
       },

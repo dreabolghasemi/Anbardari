@@ -57,19 +57,18 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-  // 1. Health Check Endpoints (for Railway and local monitoring)
+  // 1. Health Check Endpoints (for monitoring central PostgreSQL status)
   const healthCheckHandler = async (_req: Request, res: Response) => {
     try {
       const warehouses = await db.getWarehouses();
-      const isPg = isPostgres();
       res.json({
         status: 'ok',
-        database: isPg ? 'connected' : 'file-storage',
+        database: 'connected',
         timestamp: new Date().toISOString(),
         service: 'نرم‌افزار انبارداری واحد اعلام حریق ذوب‌آهن اصفهان',
         designer: 'دکتر احسان ابوالقاسمی',
-        databaseEngine: isPg ? 'PostgreSQL Central Multi-Device Database' : 'Local File Storage (Fallback)',
-        multiDeviceReady: isPg,
+        databaseEngine: 'PostgreSQL Central Database (Single Source of Truth)',
+        multiDeviceReady: true,
         warehousesCount: warehouses.length,
         uptime: process.uptime(),
       });
@@ -77,7 +76,8 @@ async function startServer() {
       res.status(503).json({
         status: 'error',
         database: 'disconnected',
-        error: err.message || 'Database check failed',
+        error: 'دیتابیس سرور در دسترس نیست',
+        details: err.message || 'Database check failed',
       });
     }
   };
@@ -132,6 +132,17 @@ async function startServer() {
   // Global error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     console.error('Server error:', err);
+    if (
+      err.code === 'ECONNREFUSED' ||
+      err.message?.includes('PostgreSQL') ||
+      err.message?.includes('database') ||
+      err.message?.includes('دیتابیس')
+    ) {
+      return res.status(503).json({
+        error: 'دیتابیس سرور در دسترس نیست',
+        details: err.message,
+      });
+    }
     res.status(500).json({ error: err.message || 'خطای غیرمنتظره در سرور رخ داده است.' });
   });
 

@@ -6,12 +6,8 @@ import { AuthTokenPayload, Role } from './types.js';
 
 let jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
-  if (process.env.NODE_ENV === 'production') {
-    console.warn('[Security Warning] JWT_SECRET is not set in environment variables! Using runtime random cryptographic secret.');
-    jwtSecret = crypto.randomBytes(32).toString('hex');
-  } else {
-    jwtSecret = 'zobahan-fire-alarm-wms-lan-secret-key-2026';
-  }
+  console.warn('[Security Warning] JWT_SECRET is not set in environment variables! Generating dynamic runtime secret.');
+  jwtSecret = crypto.randomBytes(32).toString('hex');
 }
 const JWT_SECRET = jwtSecret;
 

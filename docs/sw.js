@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-619edae6'], (function (workbox) { 'use strict';
+define(['./workbox-aeb6ecaf'], (function (workbox) { 'use strict';
 
   self.skipWaiting();
   workbox.clientsClaim();
@@ -78,7 +78,7 @@ define(['./workbox-619edae6'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "registerSW.js",
-    "revision": "402b66900e731ca748771b6fc5e7a068"
+    "revision": "1872c500de691dce40960bb85481de07"
   }, {
     "url": "pwa-maskable-512x512.png",
     "revision": "44a3f2b7342db5686068a14b66916812"
@@ -90,7 +90,10 @@ define(['./workbox-619edae6'], (function (workbox) { 'use strict';
     "revision": "d3e3e0c9d1dee2a9e7ed55328dae195d"
   }, {
     "url": "index.html",
-    "revision": "c09afd8ad677fc09b2603ca5b8912e74"
+    "revision": "f633285c68cd313c131cc7355bcc2c89"
+  }, {
+    "url": "images.png",
+    "revision": "46b89e5441b274107834052a0fd4dda9"
   }, {
     "url": "icon.svg",
     "revision": "f8568f3c6fe4313a71df62fc9535a9af"
@@ -98,10 +101,16 @@ define(['./workbox-619edae6'], (function (workbox) { 'use strict';
     "url": "apple-touch-icon.png",
     "revision": "29e53d8709ae85dcaf5d6ba32374a1e1"
   }, {
-    "url": "assets/index-CtlmyghA.css",
+    "url": "404.html",
+    "revision": "ce3aabc75468826546f8ce3add5a13c6"
+  }, {
+    "url": "assets/index-CjaBdA5v.css",
     "revision": null
   }, {
-    "url": "assets/index-BVV3a0hK.js",
+    "url": "assets/index-B5n8EMQU.js",
+    "revision": null
+  }, {
+    "url": "assets/images-BYbuhRKg.png",
     "revision": null
   }, {
     "url": "apple-touch-icon.png",
@@ -120,8 +129,14 @@ define(['./workbox-619edae6'], (function (workbox) { 'use strict';
     "revision": "44a3f2b7342db5686068a14b66916812"
   }, {
     "url": "manifest.webmanifest",
-    "revision": "ffe7a69a210cf61f3f962b00d64c084a"
+    "revision": "98d5f5cecccac4db6b5bc0560f377522"
   }], {});
   workbox.cleanupOutdatedCaches();
+  workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html"), {
+    denylist: [/^\/api\//]
+  }));
+  workbox.registerRoute(({
+    url
+  }) => url.pathname.startsWith("/api/"), new workbox.NetworkOnly(), 'GET');
 
 }));

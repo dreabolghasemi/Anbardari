@@ -84,7 +84,18 @@ export interface StockTransaction {
   userId: string;
   notes?: string | null;
   referenceNo?: string | null;
+  trackingCode?: string | null;
   createdAt: string;
+  itemName?: string;
+  itemCode?: string;
+  itemBrand?: string;
+  itemUnit?: string;
+  sourceWarehouseName?: string;
+  sourceShelfName?: string;
+  destWarehouseName?: string;
+  destShelfName?: string;
+  userName?: string;
+  userFullName?: string;
 }
 
 export interface AuditLog {
