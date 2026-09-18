@@ -1,5 +1,5 @@
-// Optional PostgreSQL / Prisma Schema for external database migrations (e.g. Railway)
-// Saved for reference - the application uses self-contained atomic JSON database in data/warehouse-db.json
+// Reference PostgreSQL Schema definition
+// Central PostgreSQL is the single source of truth for the warehouse system.
 
 generator client {
   provider = "prisma-client-js"

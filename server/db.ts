@@ -28,10 +28,13 @@ export class PostgresDatabaseService {
   private isInitialized = false;
 
   constructor(connectionString?: string) {
-    const connStr =
-      connectionString ||
-      process.env.DATABASE_URL ||
-      'postgresql://postgres@localhost:5432/anbar';
+    const connStr = connectionString || process.env.DATABASE_URL;
+
+    if (!connStr || connStr.trim() === '') {
+      throw new Error(
+        '[PostgreSQL Error] DATABASE_URL environment variable is missing or empty. Server cannot initialize without valid PostgreSQL configuration.'
+      );
+    }
 
     const isSslNeeded =
       process.env.DATABASE_SSL === 'true' ||
@@ -40,7 +43,7 @@ export class PostgresDatabaseService {
         process.env.NODE_ENV === 'production');
 
     this.pool = new Pool({
-      connectionString: connStr,
+      connectionString: connStr.trim(),
       ssl: isSslNeeded ? { rejectUnauthorized: false } : undefined,
       max: 20,
       idleTimeoutMillis: 30000,
@@ -94,7 +97,7 @@ export class PostgresDatabaseService {
   async getUsers(): Promise<Omit<User, 'passwordHash'>[]> {
     const res = await this.pool.query(
       `SELECT id, username, full_name AS "fullName", role, is_active AS "isActive",
-              created_at AS "createdAt", last_login AS "lastLogin"
+              token_version AS "tokenVersion", created_at AS "createdAt", last_login AS "lastLogin"
        FROM users
        ORDER BY created_at ASC`
     );
@@ -104,7 +107,8 @@ export class PostgresDatabaseService {
   async getUserById(id: string): Promise<User | null> {
     const res = await this.pool.query(
       `SELECT id, username, full_name AS "fullName", password_hash AS "passwordHash",
-              role, is_active AS "isActive", created_at AS "createdAt", last_login AS "lastLogin"
+              role, is_active AS "isActive", token_version AS "tokenVersion",
+              created_at AS "createdAt", last_login AS "lastLogin"
        FROM users
        WHERE id = $1`,
       [id]
@@ -115,7 +119,8 @@ export class PostgresDatabaseService {
   async getUserByUsername(username: string): Promise<User | null> {
     const res = await this.pool.query(
       `SELECT id, username, full_name AS "fullName", password_hash AS "passwordHash",
-              role, is_active AS "isActive", created_at AS "createdAt", last_login AS "lastLogin"
+              role, is_active AS "isActive", token_version AS "tokenVersion",
+              created_at AS "createdAt", last_login AS "lastLogin"
        FROM users
        WHERE LOWER(username) = LOWER($1)`,
       [username.trim()]
@@ -140,9 +145,9 @@ export class PostgresDatabaseService {
     const now = new Date().toISOString();
 
     const res = await this.pool.query(
-      `INSERT INTO users (id, username, full_name, password_hash, role, is_active, created_at)
-       VALUES ($1, $2, $3, $4, $5, true, $6)
-       RETURNING id, username, full_name AS "fullName", role, is_active AS "isActive", created_at AS "createdAt"`,
+      `INSERT INTO users (id, username, full_name, password_hash, role, is_active, token_version, created_at)
+       VALUES ($1, $2, $3, $4, $5, true, 1, $6)
+       RETURNING id, username, full_name AS "fullName", role, is_active AS "isActive", token_version AS "tokenVersion", created_at AS "createdAt"`,
       [id, data.username.trim(), data.fullName.trim(), passwordHash, data.role, now]
     );
 
@@ -162,25 +167,41 @@ export class PostgresDatabaseService {
     if (!user) throw new Error('کاربر مورد نظر یافت نشد.');
 
     let passwordHash = user.passwordHash;
-    if (data.password && data.password.trim().length > 0) {
+    const isPasswordChanged = !!(data.password && data.password.trim().length > 0);
+    if (isPasswordChanged) {
       const salt = await bcrypt.genSalt(10);
-      passwordHash = await bcrypt.hash(data.password, salt);
+      passwordHash = await bcrypt.hash(data.password!, salt);
     }
 
     const fullName = data.fullName !== undefined ? data.fullName.trim() : user.fullName;
     const role = data.role !== undefined ? data.role : user.role;
     const isActive = data.isActive !== undefined ? data.isActive : user.isActive;
 
+    // Revoke previous sessions by bumping token_version if password changed, account deactivated, or role changed
+    const shouldBumpTokenVersion =
+      isPasswordChanged ||
+      (data.isActive !== undefined && data.isActive === false) ||
+      (data.role !== undefined && data.role !== user.role);
+
     const res = await this.pool.query(
       `UPDATE users
-       SET full_name = $1, role = $2, is_active = $3, password_hash = $4
+       SET full_name = $1, role = $2, is_active = $3, password_hash = $4,
+           token_version = CASE WHEN $6::boolean THEN token_version + 1 ELSE token_version END
        WHERE id = $5
        RETURNING id, username, full_name AS "fullName", role, is_active AS "isActive",
-                 created_at AS "createdAt", last_login AS "lastLogin"`,
-      [fullName, role, isActive, passwordHash, id]
+                 token_version AS "tokenVersion", created_at AS "createdAt", last_login AS "lastLogin"`,
+      [fullName, role, isActive, passwordHash, id, shouldBumpTokenVersion]
     );
 
     return res.rows[0];
+  }
+
+  async incrementTokenVersion(userId: string): Promise<number> {
+    const res = await this.pool.query(
+      `UPDATE users SET token_version = token_version + 1 WHERE id = $1 RETURNING token_version AS "tokenVersion"`,
+      [userId]
+    );
+    return res.rows[0]?.tokenVersion || 1;
   }
 
   async deleteUser(id: string): Promise<boolean> {
@@ -726,6 +747,7 @@ export class PostgresDatabaseService {
     userId: string;
     referenceNo?: string;
     notes?: string;
+    ipAddress?: string;
   }) {
     if (params.quantity <= 0) {
       throw new Error('تعداد ورودی کالا باید بزرگتر از صفر باشد.');
@@ -791,13 +813,14 @@ export class PostgresDatabaseService {
 
       await client.query(
         `INSERT INTO audit_logs (id, user_id, username, action, entity, entity_id, details, ip_address, created_at)
-         VALUES ($1, $2, $3, 'STOCK_IN', 'Item', $4, $5, '127.0.0.1', NOW())`,
+         VALUES ($1, $2, $3, 'STOCK_IN', 'Item', $4, $5, $6, NOW())`,
         [
           crypto.randomUUID(),
           params.userId,
           username,
           params.itemId,
           `ورود ${params.quantity} عدد کالای «${item.name}» (سند: ${docNo})`,
+          params.ipAddress || '127.0.0.1',
         ]
       );
 
@@ -827,6 +850,7 @@ export class PostgresDatabaseService {
     userId: string;
     referenceNo?: string;
     notes?: string;
+    ipAddress?: string;
   }) {
     if (params.quantity <= 0) {
       throw new Error('تعداد خروجی کالا باید بزرگتر از صفر باشد.');
@@ -886,13 +910,14 @@ export class PostgresDatabaseService {
 
       await client.query(
         `INSERT INTO audit_logs (id, user_id, username, action, entity, entity_id, details, ip_address, created_at)
-         VALUES ($1, $2, $3, 'STOCK_OUT', 'Item', $4, $5, '127.0.0.1', NOW())`,
+         VALUES ($1, $2, $3, 'STOCK_OUT', 'Item', $4, $5, $6, NOW())`,
         [
           crypto.randomUUID(),
           params.userId,
           username,
           params.itemId,
           `خروج ${params.quantity} عدد کالای «${item.name}» (سند: ${docNo})`,
+          params.ipAddress || '127.0.0.1',
         ]
       );
 
@@ -924,6 +949,7 @@ export class PostgresDatabaseService {
     userId: string;
     referenceNo?: string;
     notes?: string;
+    ipAddress?: string;
   }) {
     if (params.quantity <= 0) {
       throw new Error('تعداد انتقالی باید بزرگتر از صفر باشد.');
@@ -1030,13 +1056,14 @@ export class PostgresDatabaseService {
 
       await client.query(
         `INSERT INTO audit_logs (id, user_id, username, action, entity, entity_id, details, ip_address, created_at)
-         VALUES ($1, $2, $3, 'TRANSFER', 'Item', $4, $5, '127.0.0.1', NOW())`,
+         VALUES ($1, $2, $3, 'TRANSFER', 'Item', $4, $5, $6, NOW())`,
         [
           crypto.randomUUID(),
           params.userId,
           username,
           params.itemId,
           `انتقال ${params.quantity} عدد کالای «${item.name}» بین قفسه‌ها (سند: ${docNo})`,
+          params.ipAddress || '127.0.0.1',
         ]
       );
 
@@ -1065,6 +1092,7 @@ export class PostgresDatabaseService {
     newTargetQuantity: number;
     userId: string;
     reason: string;
+    ipAddress?: string;
   }) {
     if (params.newTargetQuantity < 0) {
       throw new Error('موجودی نمی‌تواند منفی باشد.');
@@ -1133,13 +1161,14 @@ export class PostgresDatabaseService {
 
       await client.query(
         `INSERT INTO audit_logs (id, user_id, username, action, entity, entity_id, details, ip_address, created_at)
-         VALUES ($1, $2, $3, 'ADJUST_INVENTORY', 'Inventory', $4, $5, '127.0.0.1', NOW())`,
+         VALUES ($1, $2, $3, 'ADJUST_INVENTORY', 'Inventory', $4, $5, $6, NOW())`,
         [
           crypto.randomUUID(),
           params.userId,
           username,
           params.itemId,
           `اصلاح موجودی کالای «${item.name}» از ${oldQuantity} به ${params.newTargetQuantity}. دلیل: ${params.reason}`,
+          params.ipAddress || '127.0.0.1',
         ]
       );
 
@@ -1506,7 +1535,7 @@ export class PostgresDatabaseService {
     };
   }
 
-  async restoreBackup(backupData: any, adminUserId: string): Promise<boolean> {
+  async restoreBackup(backupData: any, adminUserId: string, ipAddress?: string): Promise<boolean> {
     const data = backupData.data || backupData;
     const client = await this.pool.connect();
     try {
@@ -1588,8 +1617,8 @@ export class PostgresDatabaseService {
 
       await client.query(
         `INSERT INTO audit_logs (id, user_id, username, action, entity, entity_id, details, ip_address, created_at)
-         VALUES ($1, $2, 'admin', 'RESTORE_BACKUP', 'System', 'SYSTEM', 'بازیابی پایگاه داده از روی فایل پشتیبان در PostgreSQL', '127.0.0.1', NOW())`,
-        [crypto.randomUUID(), adminUserId]
+         VALUES ($1, $2, 'admin', 'RESTORE_BACKUP', 'System', 'SYSTEM', 'بازیابی پایگاه داده از روی فایل پشتیبان در PostgreSQL', $3, NOW())`,
+        [crypto.randomUUID(), adminUserId, ipAddress || '127.0.0.1']
       );
 
       await client.query('COMMIT');
@@ -1602,7 +1631,7 @@ export class PostgresDatabaseService {
     }
   }
 
-  async migrateFromLocal(localData: any, adminUserId: string) {
+  async migrateFromLocal(localData: any, adminUserId: string, ipAddress?: string) {
     if (!localData) {
       throw new Error('داده‌های محلی ارسال نشده است.');
     }
@@ -1720,11 +1749,12 @@ export class PostgresDatabaseService {
 
       await client.query(
         `INSERT INTO audit_logs (id, user_id, username, action, entity, entity_id, details, ip_address, created_at)
-         VALUES ($1, $2, 'admin', 'MIGRATE_FROM_LOCAL', 'System', 'SYSTEM', $3, '127.0.0.1', NOW())`,
+         VALUES ($1, $2, 'admin', 'MIGRATE_FROM_LOCAL', 'System', 'SYSTEM', $3, $4, NOW())`,
         [
           crypto.randomUUID(),
           adminUserId,
           `انتقال داده‌های پایگاه محلی به سرور مرکزی PostgreSQL: ${importedWarehouses} انبار، ${importedShelves} قفسه، ${importedItems} کالا، ${importedInventories} رکورد موجودی و ${importedTransactions} تراکنش`,
+          ipAddress || '127.0.0.1',
         ]
       );
 
@@ -1844,6 +1874,7 @@ export class PostgresDatabaseService {
     userId: string;
     referenceNo?: string;
     notes?: string;
+    ipAddress?: string;
   }) {
     return this.transfer(params);
   }
@@ -1855,6 +1886,7 @@ export class PostgresDatabaseService {
     newTargetQuantity: number;
     userId: string;
     reason: string;
+    ipAddress?: string;
   }) {
     return this.adjustInventory(params);
   }

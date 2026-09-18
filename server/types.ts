@@ -9,6 +9,7 @@ export interface User {
   passwordHash: string;
   role: Role;
   isActive: boolean;
+  tokenVersion?: number;
   createdAt: string;
   lastLogin?: string | null;
 }
@@ -115,4 +116,5 @@ export interface AuthTokenPayload {
   username: string;
   fullName: string;
   role: Role;
+  tokenVersion?: number;
 }

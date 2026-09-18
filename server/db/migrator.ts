@@ -71,29 +71,25 @@ export async function runMigrations(pool: Pool): Promise<void> {
     if (usersCount === 0) {
       console.log('[PostgreSQL] Users table is empty. Initializing primary administrative account...');
       
-      const salt = await bcrypt.genSalt(10);
       const adminUsername = (process.env.ADMIN_USERNAME || 'admin').trim();
       const adminFullName = (process.env.ADMIN_FULLNAME || 'مدیر سیستم انبارداری').trim();
 
-      // Read password strictly from environment variable, or generate secure random one if unset
-      let adminPassword = process.env.ADMIN_INITIAL_PASSWORD;
+      // Read password strictly from environment variable
+      const adminPassword = process.env.ADMIN_INITIAL_PASSWORD?.trim();
       if (!adminPassword) {
-        const randomSecret = crypto.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '') + 'A1!';
-        adminPassword = randomSecret;
-        console.warn('================================================================');
-        console.warn('[SECURITY] ADMIN_INITIAL_PASSWORD was not defined in environment.');
-        console.warn(`[SECURITY] Temporary Admin Password generated: ${adminPassword}`);
-        console.warn('Please change this password immediately upon first login!');
-        console.warn('================================================================');
+        throw new Error(
+          'ADMIN_INITIAL_PASSWORD environment variable is required to initialize the primary administrator account.'
+        );
       }
 
+      const salt = await bcrypt.genSalt(10);
       const adminPasswordHash = await bcrypt.hash(adminPassword, salt);
       const adminId = 'usr-admin-' + crypto.randomBytes(4).toString('hex');
       const now = new Date().toISOString();
 
       await client.query(
-        `INSERT INTO users (id, username, full_name, password_hash, role, is_active, created_at)
-         VALUES ($1, $2, $3, $4, 'ADMIN', true, $5)
+        `INSERT INTO users (id, username, full_name, password_hash, role, is_active, token_version, created_at)
+         VALUES ($1, $2, $3, $4, 'ADMIN', true, 1, $5)
          ON CONFLICT (username) DO NOTHING`,
         [adminId, adminUsername, adminFullName, adminPasswordHash, now]
       );
@@ -104,7 +100,7 @@ export async function runMigrations(pool: Pool): Promise<void> {
         [crypto.randomUUID(), adminId, adminUsername, now]
       );
 
-      console.log(`[PostgreSQL] Initial Admin created with username: "${adminUsername}".`);
+      console.log(`[PostgreSQL] Initial Admin account "${adminUsername}" provisioned successfully.`);
     } else {
       console.log(`[PostgreSQL] Database contains ${usersCount} users.`);
     }
