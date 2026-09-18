@@ -1,0 +1,39 @@
+// Optional PostgreSQL / Prisma Schema for external database migrations (e.g. Railway)
+// Saved for reference - the application uses self-contained atomic JSON database in data/warehouse-db.json
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  WAREHOUSE_USER
+}
+
+enum TransactionType {
+  STOCK_IN
+  STOCK_OUT
+  TRANSFER
+  ADJUSTMENT
+}
+
+model User {
+  id           String             @id @default(uuid())
+  username     String             @unique
+  fullName     String
+  passwordHash String
+  role         Role               @default(WAREHOUSE_USER)
+  isActive     Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  lastLogin    DateTime?
+  transactions StockTransaction[]
+  auditLogs    AuditLog[]
+  attachments  Attachment[]
+
+  @@map("users")
+}

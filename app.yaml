@@ -1,0 +1,12 @@
+# Google App Engine Configuration
+runtime: nodejs20
+instance_class: F1
+
+env_variables:
+  NODE_ENV: 'production'
+  PORT: '3000'
+  JWT_SECRET: 'zobahan-fire-warehouse-secure-jwt-key-esfahan-steel-co'
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 2

@@ -1,0 +1,8 @@
+{
+  "name": "Remix نرم‌افزار انبارداری واحد اعلام حریق ذوب‌آهن اصفهان",
+  "description": "سامانه یکپارچه، سریع و استاندارد مدیریت انبار واحد اعلام حریق شرکت سهامی ذوب‌آهن اصفهان - طراح: دکتر احسان ابوالقاسمی",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

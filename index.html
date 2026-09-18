@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      // Suppress benign Vite HMR websocket disconnection noise in AI Studio environment
+      (function() {
+        const origError = console.error;
+        console.error = function(...args) {
+          const first = typeof args[0] === 'string' ? args[0] : '';
+          if (first === '[vite]' || first.startsWith('[vite]')) {
+            console.debug(...args);
+            return;
+          }
+          origError.apply(console, args);
+        };
+        window.addEventListener('error', function(e) {
+          if (e && e.message && typeof e.message === 'string' && e.message.includes('[vite]')) {
+            e.preventDefault();
+          }
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+          const reason = e ? e.reason : null;
+          const msg = (reason && (reason.message || String(reason))) || '';
+          if (typeof msg === 'string' && (msg.includes('[vite]') || msg.includes('websocket') || msg.includes('WebSocket'))) {
+            e.preventDefault();
+          }
+        });
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>نرم‌افزار انبارداری واحد اعلام حریق ذوب‌آهن اصفهان</title>
+    <meta name="description" content="سامانه یکپارچه، سریع و استاندارد مدیریت انبار واحد اعلام حریق شرکت سهامی ذوب‌آهن اصفهان - طراح: دکتر احسان ابوالقاسمی" />
+    
+    <!-- PWA & Mobile Web App Meta -->
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="انبار ذوب‌آهن" />
+    <link rel="apple-touch-icon" href="./images.png" />
+    <link rel="icon" type="image/png" href="./images.png" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./pwa-192x192.png" />
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="نرم‌افزار انبارداری واحد اعلام حریق ذوب‌آهن اصفهان" />
+    <meta property="og:description" content="سامانه یکپارچه، سریع و استاندارد مدیریت انبار واحد اعلام حریق شرکت سهامی ذوب‌آهن اصفهان - طراح: دکتر احسان ابوالقاسمی" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    
+    <!-- Google Fonts for Persian typography (Vazirmatn) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-slate-950 text-slate-100 antialiased font-sans selection:bg-orange-500 selection:text-white min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
